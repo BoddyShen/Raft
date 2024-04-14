@@ -35,13 +35,16 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	} else {
 		reply.Value = value
 	}
+
+	// Release useless lastClientOp memory
+	delete(kv.lastClientOp, args.ClientID)
 }
 
 func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
-	// handle duplicate request
+	// Handle duplicate request
 	lastOp, ok := kv.lastClientOp[args.ClientID]
 	if ok && lastOp.RequestID == args.RequestID {
 		reply.Value = lastOp.Value
@@ -49,7 +52,7 @@ func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 	}
 	
 	kv.db[args.Key] = args.Value
-	reply.Value = args.Value
+	reply.Value = ""
 	kv.lastClientOp[args.ClientID] = &OperationResult{RequestID: args.RequestID, Value: reply.Value}
 }
 
@@ -57,7 +60,7 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
-	// handle duplicate request
+	// Handle duplicate request
 	lastOp, ok := kv.lastClientOp[args.ClientID]
 	if ok && lastOp.RequestID == args.RequestID {
 		reply.Value = lastOp.Value
